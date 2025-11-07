@@ -1,13 +1,31 @@
 import streamlit as st
 from datetime import date, datetime
+import json
+import os
+
+TASK_FILE = "tasks.json"
+
+# Load tasks from file
+def load_tasks():
+    if os.path.exists(TASK_FILE):
+        with open(TASK_FILE, "r") as f:
+            return json.load(f)
+    return []
+
+# Save tasks to file
+def save_tasks(tasks):
+    with open(TASK_FILE, "w") as f:
+        json.dump(tasks, f)
 
 # Initialize session state
 if "tasks" not in st.session_state:
-    st.session_state.tasks = []
+    st.session_state.tasks = load_tasks()
+if "delete_index" not in st.session_state:
+    st.session_state.delete_index = None
 
 st.title("📝 To-Do List App with Deadlines")
 
-# 🆕 Add new task
+# Add new task
 with st.form("add_task_form"):
     title = st.text_input("Task Title")
     due = st.date_input("Due Date", min_value=date.today())
@@ -18,14 +36,11 @@ with st.form("add_task_form"):
             "due": due.isoformat(),
             "done": False
         })
+        save_tasks(st.session_state.tasks)
+        st.success("Task added!")
 
-# 🧹 Optional reset button (for debugging)
-# if st.button("Reset Task List"):
-#     st.session_state.tasks = []
-#     st.experimental_rerun()
-
-# 📋 Display tasks
-st.subheader("Your Tasks")
+# Display tasks
+st.subheader("📋 Your Tasks")
 
 def format_due(due_str):
     try:
@@ -41,8 +56,8 @@ def format_due(due_str):
         return "Invalid date"
 
 for i, task in enumerate(st.session_state.tasks):
-    if not isinstance(task, dict) or "title" not in task or "due" not in task or "done" not in task:
-        continue  # Skip invalid entries
+    if not isinstance(task, dict) or "title" not in task:
+        continue
 
     col1, col2, col3, col4 = st.columns([0.4, 0.3, 0.2, 0.1])
     with col1:
@@ -53,11 +68,17 @@ for i, task in enumerate(st.session_state.tasks):
         task["done"] = st.checkbox("Done", value=task["done"], key=f"done_{i}")
     with col4:
         if st.button("🗑️", key=f"del_{i}"):
-            st.session_state.tasks.pop(i)
-            st.experimental_rerun()
+            st.session_state.delete_index = i
 
-# ✏️ Modify due date
-st.subheader("Modify Task Due Date")
+# Handle deletion after loop
+if st.session_state.delete_index is not None:
+    st.session_state.tasks.pop(st.session_state.delete_index)
+    save_tasks(st.session_state.tasks)
+    st.session_state.delete_index = None
+    st.experimental_rerun()
+
+# Modify due date
+st.subheader("✏️ Modify Task Due Date")
 task_titles = [task["title"] for task in st.session_state.tasks]
 if task_titles:
     selected = st.selectbox("Select a task", task_titles)
@@ -66,6 +87,7 @@ if task_titles:
         for task in st.session_state.tasks:
             if task["title"] == selected:
                 task["due"] = new_due.isoformat()
+                save_tasks(st.session_state.tasks)
                 st.success(f"Updated due date for '{selected}'")
 else:
     st.info("No tasks available to update.")
