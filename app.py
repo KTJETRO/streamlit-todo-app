@@ -8,8 +8,11 @@ TASK_FILE = "tasks.json"
 # Load tasks from file
 def load_tasks():
     if os.path.exists(TASK_FILE):
-        with open(TASK_FILE, "r") as f:
-            return json.load(f)
+        try:
+            with open(TASK_FILE, "r") as f:
+                return json.load(f)
+        except:
+            return []
     return []
 
 # Save tasks to file
@@ -20,8 +23,8 @@ def save_tasks(tasks):
 # Initialize session state
 if "tasks" not in st.session_state:
     st.session_state.tasks = load_tasks()
-if "delete_index" not in st.session_state:
-    st.session_state.delete_index = None
+if "delete_task_index" not in st.session_state:
+    st.session_state.delete_task_index = None
 
 st.title("📝 To-Do List App with Deadlines")
 
@@ -67,15 +70,15 @@ for i, task in enumerate(st.session_state.tasks):
     with col3:
         task["done"] = st.checkbox("Done", value=task["done"], key=f"done_{i}")
     with col4:
-        if st.button("🗑️", key=f"del_{i}"):
-            st.session_state.delete_index = i
+        if st.button("🗑️", key=f"delete_{i}"):
+            st.session_state.delete_task_index = i
 
-# Handle deletion after loop
-if st.session_state.delete_index is not None:
-    st.session_state.tasks.pop(st.session_state.delete_index)
+# Handle deletion safely after loop
+if st.session_state.delete_task_index is not None:
+    del st.session_state.tasks[st.session_state.delete_task_index]
     save_tasks(st.session_state.tasks)
-    st.session_state.delete_index = None
-    st.experimental_rerun()
+    st.session_state.delete_task_index = None
+    st.rerun()
 
 # Modify due date
 st.subheader("✏️ Modify Task Due Date")
