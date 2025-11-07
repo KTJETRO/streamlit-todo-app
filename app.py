@@ -2,6 +2,7 @@ import streamlit as st
 from datetime import date, datetime
 import json
 import os
+import pandas as pd
 
 TASK_FILE = "tasks.json"
 
@@ -94,3 +95,24 @@ if task_titles:
                 st.success(f"Updated due date for '{selected}'")
 else:
     st.info("No tasks available to update.")
+
+# Download tasks
+st.subheader("📥 Download Your Tasks")
+
+df = pd.DataFrame(st.session_state.tasks)
+
+json_data = df.to_json(orient="records", indent=2)
+st.download_button(
+    label="Download as JSON",
+    data=json_data,
+    file_name="tasks.json",
+    mime="application/json"
+)
+
+csv_data = df.to_csv(index=False)
+st.download_button(
+    label="Download as CSV",
+    data=csv_data,
+    file_name="tasks.csv",
+    mime="text/csv"
+)
