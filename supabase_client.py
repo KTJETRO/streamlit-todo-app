@@ -22,7 +22,7 @@ def login(email: str, password: str):
 def get_user():
     return supabase.auth.user()
 
-def add_task(user_id: str, title: str, due, category: str = "", priority: str = "Medium", reminder=None, recurrence=None):
+def add_task(user_id, title, due, category="", priority="Medium", reminder=None, recurrence=None, email_reminder=False):
     try:
         due_date = due if isinstance(due, str) else due.isoformat()
         reminder_time = reminder if isinstance(reminder, str) else (reminder.isoformat() if reminder else None)
@@ -34,7 +34,8 @@ def add_task(user_id: str, title: str, due, category: str = "", priority: str = 
             "category": category,
             "priority": priority,
             "reminder": reminder_time,
-            "recurrence": recurrence
+            "recurrence": recurrence,
+            "email_reminder": email_reminder
         }).execute()
     except Exception as e:
         st.error(f"Add task error: {e}")
