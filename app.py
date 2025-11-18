@@ -5,24 +5,13 @@ from datetime import date
 from io import BytesIO
 from plyer import notification
 
-# Optional: Google Calendar
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
-import os
-import json
-
 # ------------------- CONFIG -------------------
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
-TOKEN_FILE = "token.json"
-CREDENTIALS_FILE = "credentials.json"  # Upload this from Google Cloud
-
 st.set_page_config(page_title="To-Do App", page_icon="📝")
-st.title("📝 Streamlit To-Do App (Supabase + Calendar + Notifications)")
+st.title("📝 Streamlit To-Do App (Supabase + Notifications)")
 
 # ------------------- AUTH -------------------
 if "user" not in st.session_state:
@@ -40,29 +29,6 @@ def logout():
     st.session_state.user = None
     supabase.auth.sign_out()
     st.experimental_rerun()
-
-# ------------------- GOOGLE CALENDAR -------------------
-def get_calendar_service():
-    creds = None
-    if os.path.exists(TOKEN_FILE):
-        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
-    if not creds or not creds.valid:
-        flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
-        creds = flow.run_local_server(port=0)
-        with open(TOKEN_FILE, "w") as token:
-            token.write(creds.to_json())
-    service = build("calendar", "v3", credentials=creds)
-    return service
-
-def add_task_to_calendar(task_title, due_date):
-    service = get_calendar_service()
-    event = {
-        "summary": task_title,
-        "start": {"date": due_date},
-        "end": {"date": due_date},
-        "reminders": {"useDefault": True},
-    }
-    service.events().insert(calendarId="primary", body=event).execute()
 
 # ------------------- NOTIFICATIONS -------------------
 def notify_due_tasks(tasks):
@@ -108,7 +74,7 @@ if not st.session_state.user:
                 st.success("Logged in!")
                 st.experimental_rerun()
             else:
-                st.error("Login failed.")
+                st.error("Login failed. Check email/password.")
 
     with tab2:
         st.subheader("Sign Up")
@@ -141,8 +107,7 @@ else:
                 "completed": False,
                 "due_date": due
             }).execute()
-            add_task_to_calendar(task_title, due.isoformat())
-            st.success("Task added & synced to Google Calendar!")
+            st.success("Task added!")
             st.experimental_rerun()
         else:
             st.error("Task cannot be empty.")
@@ -159,9 +124,7 @@ else:
                 "completed": t.get("completed", False),
                 "due_date": t.get("due_date")
             }).execute()
-            if "due_date" in t:
-                add_task_to_calendar(t["task"], str(t["due_date"]))
-        st.success("Imported tasks & synced to calendar!")
+        st.success("Imported tasks!")
         st.experimental_rerun()
 
     # ------------------- DISPLAY TASKS -------------------
