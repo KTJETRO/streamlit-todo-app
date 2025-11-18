@@ -55,10 +55,12 @@ if st.session_state.user:
         priority = st.selectbox("Priority", ["Low", "Medium", "High"])
         recurrence = st.selectbox("Repeat", ["None", "Daily", "Weekly", "Monthly"])
         reminder = st.time_input("Reminder Time (optional)", value=None)
+        email_reminder = st.checkbox("Send email reminder")
+
         if st.form_submit_button("Add Task"):
             reminder_dt = datetime.combine(due, reminder) if reminder else None
             recurrence_val = recurrence if recurrence != "None" else None
-            add_task(user_id, task_title, due, category, priority, reminder_dt, recurrence_val)
+            add_task(user_id, task_title, due, category, priority, reminder_dt, recurrence_val, email_reminder)
             notify(task_title, due.isoformat())
             st.session_state.refresh_trigger += 1
             st.success("Task added!")
@@ -97,7 +99,7 @@ if st.session_state.user:
 
         cols = st.columns([0.05, 0.4, 0.2, 0.15, 0.1, 0.1])
         with cols[0]:
-            selected = st.checkbox("", key=checkbox_key)
+            selected = st.checkbox("Select", key=checkbox_key, label_visibility="collapsed")
             if selected:
                 selected_ids.append(task["id"])
         with cols[1]:
@@ -116,11 +118,11 @@ if st.session_state.user:
 
     colA, colB = st.columns(2)
     with colA:
-        if st.button("Mark Selected as Done"):
+        if st.button("Mark Selected as Done") and selected_ids:
             update_task_done(selected_ids, True)
             st.session_state.refresh_trigger += 1
     with colB:
-        if st.button("Delete Selected"):
+        if st.button("Delete Selected") and selected_ids:
             delete_tasks(selected_ids)
             st.session_state.refresh_trigger += 1
 
@@ -141,7 +143,8 @@ if st.session_state.user:
                 row.get("category", ""),
                 row.get("priority", "Medium"),
                 row.get("reminder", None),
-                row.get("recurrence", None)
+                row.get("recurrence", None),
+                row.get("email_reminder", False)
             )
         st.session_state.refresh_trigger += 1
         st.success("Tasks imported!")
@@ -150,7 +153,7 @@ if st.session_state.user:
     st.subheader("📤 Export Tasks")
     if st.button("Export to Excel"):
         df_export = pd.DataFrame(tasks)
-        export_cols = ["title", "due", "done", "category", "priority", "reminder", "recurrence"]
+        export_cols = ["title", "due", "done", "category", "priority", "reminder", "recurrence", "email_reminder"]
         df_export = df_export[export_cols]
         output = BytesIO()
         df_export.to_excel(output, index=False)
