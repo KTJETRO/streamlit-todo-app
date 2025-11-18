@@ -1,4 +1,3 @@
-# utils.py
 from datetime import date, datetime
 import platform
 
@@ -6,25 +5,14 @@ import platform
 try:
     if platform.system() == "Windows":
         from win10toast import ToastNotifier
-        notifier = ToastNotifier()
-    elif platform.system() == "Darwin":  # Mac
-        import subprocess
-except ImportError:
-    notifier = None
+        toaster = ToastNotifier()
+    else:
+        from plyer import notification
+except:
+    toaster = None
 
-def notify(title: str, due: str):
-    """Show local notification for a task"""
-    try:
-        msg = f"Task: {title}\nDue: {due}"
-        if platform.system() == "Windows" and notifier:
-            notifier.show_toast("To-Do Reminder", msg, duration=10)
-        elif platform.system() == "Darwin":
-            subprocess.call(['osascript', '-e', f'display notification "{title}" with title "To-Do Reminder"'])
-    except Exception as e:
-        print("Notification error:", e)
-
-def format_due(due_str: str) -> str:
-    """Format due date for display"""
+def format_due(due_str):
+    """Format due date with status emojis"""
     try:
         due_date = datetime.fromisoformat(due_str).date()
         today = date.today()
@@ -34,5 +22,16 @@ def format_due(due_str: str) -> str:
             return f"📅 Due Today ({due_date})"
         else:
             return f"🗓️ Due {due_date}"
-    except Exception:
+    except:
         return "Invalid date"
+
+def notify(task_title, due_date):
+    """Send a local notification"""
+    message = f"Due date: {due_date}"
+    try:
+        if platform.system() == "Windows":
+            toaster.show_toast(f"Task Due: {task_title}", message, duration=10)
+        else:
+            notification.notify(title=f"Task Due: {task_title}", message=message, timeout=10)
+    except:
+        pass
