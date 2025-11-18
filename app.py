@@ -67,7 +67,7 @@ if st.session_state.user:
 
     # ---------------- FILTERS ----------------
     st.sidebar.subheader("🔍 Filter Tasks")
-    categories = sorted(set(task.get("category", "") for task in tasks if task.get("category")))
+    categories = sorted(set(task.get("category", "") or "Uncategorized" for task in tasks))
     priorities = ["Low", "Medium", "High"]
     selected_categories = st.sidebar.multiselect("Category", categories, default=categories)
     selected_priorities = st.sidebar.multiselect("Priority", priorities, default=priorities)
@@ -75,58 +75,66 @@ if st.session_state.user:
 
     filtered_tasks = []
     for task in tasks:
-        if task.get("category", "") not in selected_categories:
+        task_category = task.get("category", "") or "Uncategorized"
+        task_priority = task.get("priority", "Medium")
+        task_due = pd.to_datetime(task["due"]).date()
+
+        if task_category not in selected_categories:
             continue
-        if task.get("priority", "Medium") not in selected_priorities:
+        if task_priority not in selected_priorities:
             continue
-        if due_before and pd.to_datetime(task["due"]).date() > due_before:
+        if due_before and task_due > due_before:
             continue
+
         filtered_tasks.append(task)
 
     # ---------------- DISPLAY TASKS ----------------
     st.subheader("📋 Your Tasks")
-    select_all = st.checkbox("Select All Tasks")
-    selected_ids = []
+    if not filtered_tasks:
+        st.info("No tasks match your current filters.")
+    else:
+        select_all = st.checkbox("Select All Tasks")
+        selected_ids = []
 
-    for task in filtered_tasks:
-        checkbox_key = f"select_{task['id']}"
-        if checkbox_key not in st.session_state:
-            st.session_state[checkbox_key] = False
-        if select_all:
-            st.session_state[checkbox_key] = True
+        for task in filtered_tasks:
+            checkbox_key = f"select_{task['id']}"
+            if checkbox_key not in st.session_state:
+                st.session_state[checkbox_key] = False
+            if select_all:
+                st.session_state[checkbox_key] = True
 
-        is_overdue = pd.to_datetime(task["due"]).date() < date.today() and not task["done"]
+            is_overdue = pd.to_datetime(task["due"]).date() < date.today() and not task["done"]
 
-        cols = st.columns([0.05, 0.4, 0.2, 0.15, 0.1, 0.1])
-        with cols[0]:
-            selected = st.checkbox("Select", key=checkbox_key, label_visibility="collapsed")
-            if selected:
-                selected_ids.append(task["id"])
-        with cols[1]:
-            title = f"**{task['title']}**"
-            if is_overdue:
-                title = f"**:red[{task['title']}]**"
-            st.markdown(title)
-        with cols[2]:
-            st.markdown(format_due(task["due"]))
-        with cols[3]:
-            st.markdown(task.get("category", ""))
-        with cols[4]:
-            st.markdown(task.get("priority", ""))
-        with cols[5]:
-            st.markdown("✅" if task["done"] else "❌")
+            cols = st.columns([0.05, 0.4, 0.2, 0.15, 0.1, 0.1])
+            with cols[0]:
+                selected = st.checkbox("Select", key=checkbox_key, label_visibility="collapsed")
+                if selected:
+                    selected_ids.append(task["id"])
+            with cols[1]:
+                title = f"**{task['title']}**"
+                if is_overdue:
+                    title = f"**:red[{task['title']}]**"
+                st.markdown(title)
+            with cols[2]:
+                st.markdown(format_due(task["due"]))
+            with cols[3]:
+                st.markdown(task.get("category", "") or "Uncategorized")
+            with cols[4]:
+                st.markdown(task.get("priority", "Medium"))
+            with cols[5]:
+                st.markdown("✅" if task["done"] else "❌")
 
-    colA, colB = st.columns(2)
-    with colA:
-        if st.button("Mark Selected as Done") and selected_ids:
-            update_task_done(selected_ids, True)
-            st.session_state.refresh_trigger += 1
-            st.rerun()
-    with colB:
-        if st.button("Delete Selected") and selected_ids:
-            delete_tasks(selected_ids)
-            st.session_state.refresh_trigger += 1
-            st.rerun()
+        colA, colB = st.columns(2)
+        with colA:
+            if st.button("Mark Selected as Done") and selected_ids:
+                update_task_done(selected_ids, True)
+                st.session_state.refresh_trigger += 1
+                st.rerun()
+        with colB:
+            if st.button("Delete Selected") and selected_ids:
+                delete_tasks(selected_ids)
+                st.session_state.refresh_trigger += 1
+                st.rerun()
 
     # ---------------- EXCEL IMPORT ----------------
     st.subheader("📥 Import Tasks from Excel")
