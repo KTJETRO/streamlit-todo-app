@@ -1,118 +1,130 @@
+
 import streamlit as st
-from datetime import date, datetime
-import json
-import os
-import pandas as pd
+from supabase_client import supabase
+from gcalendar import add_task_to_calendar
+from utils import import_tasks_from_excel, export_tasks_to_excel
+from io import BytesIO
+from datetime import date
 
-TASK_FILE = "tasks.json"
+st.set_page_config(page_title="To-Do App", page_icon="📝")
 
-# Load tasks from file
-def load_tasks():
-    if os.path.exists(TASK_FILE):
-        try:
-            with open(TASK_FILE, "r") as f:
-                return json.load(f)
-        except:
-            return []
-    return []
+# -------------------- USER SESSION --------------------
+if "user" not in st.session_state:
+    st.session_state.user = None
 
-# Save tasks to file
-def save_tasks(tasks):
-    with open(TASK_FILE, "w") as f:
-        json.dump(tasks, f)
+# -------------------- AUTH --------------------
+def signup(email, password):
+    res = supabase.auth.sign_up({"email": email, "password": password})
+    return res
 
-# Initialize session state
-if "tasks" not in st.session_state:
-    st.session_state.tasks = load_tasks()
-if "delete_task_index" not in st.session_state:
-    st.session_state.delete_task_index = None
+def login(email, password):
+    res = supabase.auth.sign_in_with_password({"email": email, "password": password})
+    return res
 
-st.title("📝 To-Do List App with Deadlines")
+def logout():
+    st.session_state.user = None
+    supabase.auth.sign_out()
 
-# Add new task
-with st.form("add_task_form"):
-    title = st.text_input("Task Title")
-    due = st.date_input("Due Date", min_value=date.today())
-    submitted = st.form_submit_button("Add Task")
-    if submitted and title:
-        st.session_state.tasks.append({
-            "title": title,
-            "due": due.isoformat(),
-            "done": False
-        })
-        save_tasks(st.session_state.tasks)
-        st.success("Task added!")
+# -------------------- LOGIN / SIGNUP --------------------
+if not st.session_state.user:
+    tab1, tab2 = st.tabs(["Login", "Sign Up"])
 
-# Display tasks
-st.subheader("📋 Your Tasks")
+    with tab1:
+        st.subheader("Login")
+        email = st.text_input("Email", key="login_email")
+        password = st.text_input("Password", type="password", key="login_pass")
+        if st.button("Login"):
+            res = login(email, password)
+            if res.user:
+                st.session_state.user = res.user
+                st.success("Logged in!")
+                st.experimental_rerun()
+            else:
+                st.error("Login failed.")
 
-def format_due(due_str):
-    try:
-        due_date = datetime.fromisoformat(due_str).date()
-        today = date.today()
-        if due_date < today:
-            return f"⚠️ Overdue ({due_date})"
-        elif due_date == today:
-            return f"📅 Due Today ({due_date})"
-        else:
-            return f"🗓️ Due {due_date}"
-    except:
-        return "Invalid date"
+    with tab2:
+        st.subheader("Sign Up")
+        email = st.text_input("Email", key="signup_email")
+        password = st.text_input("Password", type="password", key="signup_pass")
+        if st.button("Sign Up"):
+            res = signup(email, password)
+            if res.user:
+                st.success("Account created! Please log in.")
+            else:
+                st.error("Signup failed.")
 
-for i, task in enumerate(st.session_state.tasks):
-    if not isinstance(task, dict) or "title" not in task:
-        continue
-
-    col1, col2, col3, col4 = st.columns([0.4, 0.3, 0.2, 0.1])
-    with col1:
-        st.markdown(f"**{task['title']}**")
-    with col2:
-        st.markdown(format_due(task["due"]))
-    with col3:
-        task["done"] = st.checkbox("Done", value=task["done"], key=f"done_{i}")
-    with col4:
-        if st.button("🗑️", key=f"delete_{i}"):
-            st.session_state.delete_task_index = i
-
-# Handle deletion safely after loop
-if st.session_state.delete_task_index is not None:
-    del st.session_state.tasks[st.session_state.delete_task_index]
-    save_tasks(st.session_state.tasks)
-    st.session_state.delete_task_index = None
-    st.rerun()
-
-# Modify due date
-st.subheader("✏️ Modify Task Due Date")
-task_titles = [task["title"] for task in st.session_state.tasks]
-if task_titles:
-    selected = st.selectbox("Select a task", task_titles)
-    new_due = st.date_input("New Due Date", min_value=date.today(), key="update_due")
-    if st.button("Update Due Date"):
-        for task in st.session_state.tasks:
-            if task["title"] == selected:
-                task["due"] = new_due.isoformat()
-                save_tasks(st.session_state.tasks)
-                st.success(f"Updated due date for '{selected}'")
+# -------------------- MAIN APP --------------------
 else:
-    st.info("No tasks available to update.")
+    user_id = st.session_state.user.id
+    st.success(f"Logged in as {st.session_state.user.email}")
 
-# Download tasks
-st.subheader("📥 Download Your Tasks")
+    if st.button("Logout"):
+        logout()
+        st.experimental_rerun()
 
-df = pd.DataFrame(st.session_state.tasks)
+    # -------------------- ADD TASK --------------------
+    st.subheader("Add a new task")
+    task_title = st.text_input("Task")
+    due = st.date_input("Due Date", min_value=date.today())
+    if st.button("Add Task"):
+        if task_title.strip():
+            supabase.table("todos").insert({
+                "task": task_title,
+                "user_id": user_id,
+                "completed": False,
+                "due_date": due
+            }).execute()
+            add_task_to_calendar(task_title, due.isoformat())
+            st.success("Task added & synced to Google Calendar!")
+            st.experimental_rerun()
+        else:
+            st.error("Task cannot be empty.")
 
-json_data = df.to_json(orient="records", indent=2)
-st.download_button(
-    label="Download as JSON",
-    data=json_data,
-    file_name="tasks.json",
-    mime="application/json"
-)
+    # -------------------- IMPORT EXCEL --------------------
+    st.subheader("Import tasks from Excel")
+    uploaded_file = st.file_uploader("Upload Excel (.xlsx)", type=["xlsx"])
+    if uploaded_file:
+        tasks = import_tasks_from_excel(uploaded_file)
+        for t in tasks:
+            supabase.table("todos").insert({
+                "task": t["task"],
+                "user_id": user_id,
+                "completed": t.get("completed", False),
+                "due_date": t.get("due_date")
+            }).execute()
+            if "due_date" in t:
+                add_task_to_calendar(t["task"], str(t["due_date"]))
+        st.success("Imported tasks & synced to calendar!")
+        st.experimental_rerun()
 
-csv_data = df.to_csv(index=False)
-st.download_button(
-    label="Download as CSV",
-    data=csv_data,
-    file_name="tasks.csv",
-    mime="text/csv"
-)
+    # -------------------- DISPLAY TASKS --------------------
+    st.subheader("Your To-Do List")
+    todos = supabase.table("todos").select("*").eq("user_id", user_id).execute()
+
+    if todos.data:
+        for todo in todos.data:
+            col1, col2, col3 = st.columns([6,1,1])
+            with col1:
+                st.write(("✔️ " if todo["completed"] else "❗ ") + todo["task"])
+            with col2:
+                if st.checkbox("Done", value=todo["completed"], key=f"done{todo['id']}"):
+                    supabase.table("todos").update({"completed": True}).eq("id", todo["id"]).execute()
+                    st.experimental_rerun()
+            with col3:
+                if st.button("🗑️", key=f"del{todo['id']}"):
+                    supabase.table("todos").delete().eq("id", todo["id"]).execute()
+                    st.experimental_rerun()
+    else:
+        st.info("No tasks yet.")
+
+    # -------------------- EXPORT EXCEL --------------------
+    st.subheader("Export tasks to Excel")
+    if st.button("Download Excel"):
+        tasks_data = todos.data
+        output = export_tasks_to_excel(tasks_data)
+        st.download_button(
+            "Download Excel",
+            data=output.getvalue(),
+            file_name="todos.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
