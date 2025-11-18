@@ -1,97 +1,77 @@
 import streamlit as st
 from datetime import date
-from supabase_client import signup, login, logout, get_user_tasks, add_task, update_task_completed, delete_task
-from utils import import_tasks_from_excel, export_tasks_to_excel, notify_due_tasks
+from supabase_client import signup, login, get_tasks, add_task, update_task, delete_task
+from utils import import_from_excel, export_to_excel, notify_task
 
-st.set_page_config(page_title="To-Do App", page_icon="📝")
-st.title("📝 Streamlit To-Do App")
+st.set_page_config(page_title="Supabase To-Do App", page_icon="📝")
+st.title("📝 Supabase To-Do App")
 
-# ------------------- AUTH -------------------
-if "user" not in st.session_state:
-    st.session_state.user = None
+# -------------------- AUTHENTICATION --------------------
+auth_choice = st.radio("Login / Signup", ["Login", "Signup"])
 
-if not st.session_state.user:
-    tab1, tab2 = st.tabs(["Login", "Sign Up"])
-    with tab1:
+if auth_choice == "Signup":
+    with st.form("signup_form"):
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Sign Up")
+        if submitted:
+            if signup(email, password):
+                st.info("Signup successful! Please check your email and confirm before logging in.")
+else:
+    with st.form("login_form"):
         email = st.text_input("Email", key="login_email")
         password = st.text_input("Password", type="password", key="login_pass")
-        if st.button("Login"):
-            res = login(email, password)
-            if res.user:
-                st.session_state.user = res.user
-                st.success("Logged in!")
-                st.experimental_rerun()
-            else:
-                st.error("Login failed.")
+        submitted = st.form_submit_button("Login")
+        if submitted:
+            user = login(email, password)
+            if user:
+                st.session_state["user_id"] = user.id
+                st.success(f"Logged in as {email}")
 
-    with tab2:
-        email = st.text_input("Email", key="signup_email")
-        password = st.text_input("Password", type="password", key="signup_pass")
-        if st.button("Sign Up"):
-            res = signup(email, password)
-            if res.user:
-                st.success("Account created! Please log in.")
-            else:
-                st.error("Signup failed.")
+# -------------------- TO-DO APP --------------------
+if "user_id" in st.session_state:
+    user_id = st.session_state["user_id"]
 
-else:
-    user_id = st.session_state.user.id
-    st.success(f"Logged in as {st.session_state.user.email}")
-    if st.button("Logout"):
-        logout()
+    # Load tasks
+    if "tasks" not in st.session_state:
+        st.session_state["tasks"] = get_tasks(user_id)
 
-    # ------------------- ADD TASK -------------------
-    st.subheader("Add a new task")
-    task_title = st.text_input("Task")
-    due = st.date_input("Due Date", min_value=date.today())
-    if st.button("Add Task"):
-        if task_title.strip():
+    tasks = st.session_state["tasks"]
+
+    # Add Task
+    with st.form("add_task_form"):
+        task_title = st.text_input("Task Title")
+        due = st.date_input("Due Date", min_value=date.today())
+        submitted = st.form_submit_button("Add Task")
+        if submitted and task_title:
             add_task(user_id, task_title, due)
             st.success("Task added!")
+            st.session_state["tasks"] = get_tasks(user_id)
+            notify_task(task_title, due)
+
+    # Display tasks
+    st.subheader("Your Tasks")
+    for t in tasks:
+        cols = st.columns([0.5, 0.2, 0.2])
+        cols[0].write(f"**{t['task']}** — 📅 {t['due_date']}")
+        completed = cols[1].checkbox("Done", value=t["completed"], key=f"done_{t['id']}")
+        if completed != t["completed"]:
+            update_task(user_id, t["id"], completed)
+        if cols[2].button("🗑️", key=f"delete_{t['id']}"):
+            delete_task(user_id, t["id"])
+            st.session_state["tasks"] = get_tasks(user_id)
             st.experimental_rerun()
-        else:
-            st.error("Task cannot be empty.")
 
-    # ------------------- IMPORT EXCEL -------------------
-    st.subheader("Import tasks from Excel")
-    uploaded_file = st.file_uploader("Upload Excel (.xlsx)", type=["xlsx"])
+    # Excel Import
+    uploaded_file = st.file_uploader("Import Excel", type=["xlsx"])
     if uploaded_file:
-        tasks = import_tasks_from_excel(uploaded_file)
-        for t in tasks:
-            add_task(user_id, t["task"], t.get("due_date", date.today()))
-        st.success("Imported tasks!")
-        st.experimental_rerun()
+        new_tasks = import_from_excel(uploaded_file)
+        for task in new_tasks:
+            add_task(user_id, task["task"], task["due_date"])
+        st.success("Tasks imported!")
+        st.session_state["tasks"] = get_tasks(user_id)
 
-    # ------------------- DISPLAY TASKS -------------------
-    st.subheader("Your To-Do List")
-    todos = get_user_tasks(user_id)
-    if todos:
-        for todo in todos:
-            col1, col2, col3 = st.columns([6,1,1])
-            with col1:
-                st.write(("✔️ " if todo["completed"] else "❗ ") + todo["task"])
-            with col2:
-                if st.checkbox("Done", value=todo["completed"], key=f"done{todo['id']}"):
-                    update_task_completed(todo["id"], True)
-                    st.experimental_rerun()
-            with col3:
-                if st.button("🗑️", key=f"del{todo['id']}"):
-                    delete_task(todo["id"])
-                    st.experimental_rerun()
-    else:
-        st.info("No tasks yet.")
-
-    # ------------------- EXPORT EXCEL -------------------
-    st.subheader("Export tasks to Excel")
-    if st.button("Download Excel"):
-        output = export_tasks_to_excel(todos)
-        st.download_button(
-            "Download Excel",
-            data=output.getvalue(),
-            file_name="todos.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-    # ------------------- LOCAL NOTIFICATIONS -------------------
-    if todos:
-        notify_due_tasks(todos)
+    # Excel Export
+    if st.button("Export Tasks to Excel"):
+        file_path = export_to_excel(tasks)
+        st.download_button("Download Excel", file_path)
