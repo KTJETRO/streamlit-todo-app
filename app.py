@@ -84,25 +84,27 @@ if st.session_state.user:
     upload = st.file_uploader("Upload Excel", type=["xlsx"])
     if upload:
         df = pd.read_excel(upload)
-        required_cols = {"title", "due"}
-        if required_cols.issubset(df.columns):
-            for _, row in df.iterrows():
-                add_task(
-                    user_id,
-                    row["title"],
-                    row["due"],
-                    row.get("category", ""),
-                    row.get("priority", "Medium"),
-                    row.get("reminder", None)
-                )
-            st.session_state.refresh_trigger += 1
-            st.success("Tasks imported!")
-        else:
-            st.error("Excel must contain at least 'title' and 'due' columns.")
+        df = df.dropna(subset=["title", "due"])
+        df["due"] = pd.to_datetime(df["due"], errors="coerce")
+        if "reminder" in df.columns:
+            df["reminder"] = pd.to_datetime(df["reminder"], errors="coerce")
+        for _, row in df.iterrows():
+            add_task(
+                user_id,
+                row["title"],
+                row["due"],
+                row.get("category", ""),
+                row.get("priority", "Medium"),
+                row.get("reminder", None)
+            )
+        st.session_state.refresh_trigger += 1
+        st.success("Tasks imported!")
 
     st.subheader("📤 Export Tasks")
     if st.button("Export to Excel"):
         df_export = pd.DataFrame(tasks)
+        export_cols = ["title", "due", "done", "category", "priority", "reminder"]
+        df_export = df_export[export_cols]
         output = BytesIO()
         df_export.to_excel(output, index=False)
         st.download_button("Download Excel", data=output.getvalue(), file_name="tasks.xlsx")
@@ -123,9 +125,3 @@ if st.session_state.user:
             "center": "title",
             "right": "dayGridMonth,timeGridWeek"
         }
-    }
-    calendar(events=calendar_events, options=calendar_options)
-
-if st.session_state.refresh_trigger > 0:
-    st.session_state.refresh_trigger = 0
-    st.rerun()
