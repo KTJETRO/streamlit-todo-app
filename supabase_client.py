@@ -1,14 +1,14 @@
 from supabase import create_client, Client
 from datetime import date
-
 import os
 
+# ---------------- CONFIG ----------------
 SUPABASE_URL = os.environ.get("SUPABASE_URL")  # Set in Streamlit secrets
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")  # Set in Streamlit secrets
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ---------------- AUTH ----------------
+# ---------------- AUTHENTICATION ----------------
 
 def signup(email, password):
     """
@@ -32,11 +32,12 @@ def login(email, password):
 
 def get_user():
     """
-    Return current user
+    Return current logged-in user
     """
     return supabase.auth.user()
 
-# ---------------- TASKS ----------------
+
+# ---------------- TASK MANAGEMENT ----------------
 
 def add_task(user_id, title, due):
     """
@@ -44,7 +45,7 @@ def add_task(user_id, title, due):
     """
     try:
         due_str = due.isoformat() if isinstance(due, date) else str(due)
-        supabase.table("todos").insert({
+        supabase.table("tasks").insert({
             "user_id": user_id,
             "title": title,
             "due": due_str,
@@ -59,7 +60,7 @@ def get_tasks(user_id):
     Retrieve all tasks for a user, ordered by due date
     """
     try:
-        res = supabase.table("todos").select("*").eq("user_id", user_id).order("due").execute()
+        res = supabase.table("tasks").select("*").eq("user_id", user_id).order("due").execute()
         return res.data if res.data else []
     except Exception as e:
         print("Get tasks error:", e)
@@ -70,7 +71,7 @@ def update_task_done(task_id, done):
     Mark a task as done / not done
     """
     try:
-        supabase.table("todos").update({"done": done}).eq("id", task_id).execute()
+        supabase.table("tasks").update({"done": done}).eq("id", task_id).execute()
     except Exception as e:
         print("Update task done error:", e)
         raise e
@@ -80,7 +81,7 @@ def delete_task(task_id):
     Delete a task
     """
     try:
-        supabase.table("todos").delete().eq("id", task_id).execute()
+        supabase.table("tasks").delete().eq("id", task_id).execute()
     except Exception as e:
         print("Delete task error:", e)
         raise e
