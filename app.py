@@ -220,4 +220,3 @@ if st.session_state.user:
 
 # ---------------- SAFE REFRESH ----------------
 if st.session_state.refresh_trigger > 0:
-
