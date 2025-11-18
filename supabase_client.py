@@ -5,7 +5,6 @@ SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ---------------- AUTH ----------------
 def signup(email: str, password: str):
     try:
         res = supabase.auth.sign_up({"email": email, "password": password})
@@ -25,7 +24,6 @@ def login(email: str, password: str):
 def get_user():
     return supabase.auth.user()
 
-# ---------------- TASKS CRUD ----------------
 def add_task(user_id: str, title: str, due):
     try:
         due_date = due if isinstance(due, str) else due.isoformat()
@@ -40,7 +38,7 @@ def add_task(user_id: str, title: str, due):
 
 def get_tasks(user_id: str):
     try:
-        response = supabase.table("tasks").select("*").eq("user_id", user_id).order("due", ascending=True).execute()
+        response = supabase.table("tasks").select("*").eq("user_id", user_id).order("due", desc=False).execute()
         return response.data
     except Exception as e:
         st.error(f"Get tasks error: {e}")
