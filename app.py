@@ -63,7 +63,7 @@ if st.session_state.user:
             add_task(user_id, task_title, due, category, priority, reminder_dt, recurrence_val, email_reminder)
             notify(task_title, due.isoformat())
             st.session_state.refresh_trigger += 1
-            st.success("Task added!")
+            st.rerun()
 
     # ---------------- FILTERS ----------------
     st.sidebar.subheader("🔍 Filter Tasks")
@@ -121,10 +121,12 @@ if st.session_state.user:
         if st.button("Mark Selected as Done") and selected_ids:
             update_task_done(selected_ids, True)
             st.session_state.refresh_trigger += 1
+            st.rerun()
     with colB:
         if st.button("Delete Selected") and selected_ids:
             delete_tasks(selected_ids)
             st.session_state.refresh_trigger += 1
+            st.rerun()
 
     # ---------------- EXCEL IMPORT ----------------
     st.subheader("📥 Import Tasks from Excel")
@@ -147,7 +149,7 @@ if st.session_state.user:
                 row.get("email_reminder", False)
             )
         st.session_state.refresh_trigger += 1
-        st.success("Tasks imported!")
+        st.rerun()
 
     # ---------------- EXCEL EXPORT ----------------
     st.subheader("📤 Export Tasks")
