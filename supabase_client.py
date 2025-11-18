@@ -2,8 +2,8 @@ from supabase import create_client, Client
 from datetime import date
 
 # Replace with your Supabase project URL and anon key
-SUPABASE_URL = "https://YOUR_PROJECT.supabase.co"
-SUPABASE_KEY = "YOUR_ANON_KEY"
+SUPABASE_URL = "https://ovqdhqnlisrylqihohvi.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92cWRocW5saXNyeWxxaWhvaHZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0NTA3MjEsImV4cCI6MjA3OTAyNjcyMX0.aCiT0O0VeFZf5Vs452nw14Tog3WhBj-pL07NRbPBZoU"
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
