@@ -3,4 +3,5 @@ supabase
 pandas
 openpyxl
 plyer
+streamlit-calendar
 
