@@ -1,40 +1,46 @@
 from supabase import create_client
-
 import streamlit as st
 
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+url = st.secrets["SUPABASE_URL"]
+key = st.secrets["SUPABASE_KEY"]
+supabase = create_client(url, key)
 
-# ------------------- AUTH -------------------
 def signup(email, password):
-    res = supabase.auth.sign_up({"email": email, "password": password})
-    return res
+    try:
+        res = supabase.auth.sign_up({"email": email, "password": password})
+        if res.user:
+            return True
+        else:
+            return False
+    except Exception as e:
+        st.error(f"Signup error: {e}")
+        return False
 
 def login(email, password):
-    res = supabase.auth.sign_in_with_password({"email": email, "password": password})
-    return res
+    try:
+        res = supabase.auth.sign_in_with_password({"email": email, "password": password})
+        if res.user:
+            return res.user
+        else:
+            st.error("Login failed. Please check email/password or confirm your email.")
+            return None
+    except Exception as e:
+        st.error(f"Login error: {e}")
+        return None
 
-def logout():
-    supabase.auth.sign_out()
-    st.session_state.user = None
-    st.experimental_rerun()
-
-# ------------------- DATABASE -------------------
-def get_user_tasks(user_id):
-    result = supabase.table("todos").select("*").eq("user_id", user_id).execute()
-    return result.data if result.data else []
+def get_tasks(user_id):
+    return supabase.table("todos").select("*").eq("user_id", user_id).execute().data
 
 def add_task(user_id, task, due_date):
     supabase.table("todos").insert({
-        "task": task,
         "user_id": user_id,
+        "task": task,
         "completed": False,
         "due_date": due_date
     }).execute()
 
-def update_task_completed(task_id, completed=True):
-    supabase.table("todos").update({"completed": completed}).eq("id", task_id).execute()
+def update_task(user_id, task_id, completed):
+    supabase.table("todos").update({"completed": completed}).eq("id", task_id).eq("user_id", user_id).execute()
 
-def delete_task(task_id):
-    supabase.table("todos").delete().eq("id", task_id).execute()
+def delete_task(user_id, task_id):
+    supabase.table("todos").delete().eq("id", task_id).eq("user_id", user_id).execute()
