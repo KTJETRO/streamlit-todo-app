@@ -3,6 +3,4 @@ supabase
 pandas
 openpyxl
 plyer
-google-auth
-google-auth-oauthlib
-google-api-python-client
+
