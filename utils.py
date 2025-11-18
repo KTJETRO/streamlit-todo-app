@@ -1,24 +1,19 @@
-from datetime import date, datetime
+# utils.py
+from datetime import datetime, date
 import platform
 
 # Notifications
 try:
     if platform.system() == "Windows":
         from win10toast import ToastNotifier
-        notifier = ToastNotifier()
+        toaster = ToastNotifier()
     else:
         from plyer import notification
 except ImportError:
-    notifier = None
-
+    toaster = None
 
 def format_due(due_str):
-    """
-    Format the due date for display with icons.
-    - Overdue: ⚠️
-    - Due Today: 📅
-    - Future: 🗓️
-    """
+    """Format due date for display."""
     try:
         due_date = datetime.fromisoformat(due_str).date()
         today = date.today()
@@ -28,21 +23,21 @@ def format_due(due_str):
             return f"📅 Due Today ({due_date})"
         else:
             return f"🗓️ Due {due_date}"
-    except Exception:
+    except:
         return "Invalid date"
 
-
-def notify(title, due_date_str):
-    """
-    Show a local notification for a task.
-    Works on Windows (win10toast) and Mac/Linux (plyer).
-    """
-    message = f"Task due: {due_date_str}"
+def notify(task_title, due_date):
+    """Send local notification for due tasks."""
+    message = f"Task '{task_title}' is due on {due_date}."
     try:
-        if platform.system() == "Windows" and 'notifier' in globals():
-            notifier.show_toast(title, message, duration=10, threaded=True)
+        if platform.system() == "Windows" and toaster:
+            toaster.show_toast("To-Do Reminder", message, duration=10)
         else:
-            # plyer fallback for Mac/Linux
-            notification.notify(title=title, message=message, timeout=10)
+            from plyer import notification
+            notification.notify(
+                title="To-Do Reminder",
+                message=message,
+                timeout=10
+            )
     except Exception as e:
         print(f"Notification failed: {e}")
