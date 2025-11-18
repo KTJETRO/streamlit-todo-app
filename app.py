@@ -9,11 +9,13 @@ from utils import format_due, notify
 st.set_page_config(page_title="Supabase To-Do App", page_icon="📝")
 st.title("📝 Supabase To-Do App")
 
+# ---------------- SESSION STATE ----------------
 if "user" not in st.session_state:
     st.session_state.user = None
 if "refresh_trigger" not in st.session_state:
     st.session_state.refresh_trigger = 0
 
+# ---------------- AUTHENTICATION ----------------
 auth_option = st.sidebar.selectbox("Login / Signup", ["Login", "Sign Up"])
 email = st.sidebar.text_input("Email")
 password = st.sidebar.text_input("Password", type="password")
@@ -34,10 +36,12 @@ elif auth_option == "Login":
         else:
             st.error("Login failed. Make sure your email is confirmed.")
 
+# ---------------- MAIN APP ----------------
 if st.session_state.user:
     user_id = st.session_state.user.id
     tasks = get_tasks(user_id)
 
+    # ---------------- ADD TASK ----------------
     with st.form("add_task_form"):
         task_title = st.text_input("Task Title")
         due = st.date_input("Due Date", min_value=date.today())
@@ -51,6 +55,7 @@ if st.session_state.user:
             st.session_state.refresh_trigger += 1
             st.success("Task added!")
 
+    # ---------------- DISPLAY TASKS ----------------
     st.subheader("📋 Your Tasks")
     selected_ids = []
     for task in tasks:
@@ -80,6 +85,7 @@ if st.session_state.user:
             delete_tasks(selected_ids)
             st.session_state.refresh_trigger += 1
 
+    # ---------------- EXCEL IMPORT ----------------
     st.subheader("📥 Import Tasks from Excel")
     upload = st.file_uploader("Upload Excel", type=["xlsx"])
     if upload:
@@ -100,6 +106,7 @@ if st.session_state.user:
         st.session_state.refresh_trigger += 1
         st.success("Tasks imported!")
 
+    # ---------------- EXCEL EXPORT ----------------
     st.subheader("📤 Export Tasks")
     if st.button("Export to Excel"):
         df_export = pd.DataFrame(tasks)
@@ -109,6 +116,7 @@ if st.session_state.user:
         df_export.to_excel(output, index=False)
         st.download_button("Download Excel", data=output.getvalue(), file_name="tasks.xlsx")
 
+    # ---------------- CALENDAR VIEW ----------------
     st.subheader("📆 Calendar View")
     calendar_events = []
     for task in tasks:
@@ -116,8 +124,9 @@ if st.session_state.user:
             "title": task["title"],
             "start": task["due"],
             "end": task["due"],
-            "color": "#f39c12" if task["priority"] == "High" else "#27ae60"
+            "color": "#f39c12" if task.get("priority") == "High" else "#27ae60"
         })
+
     calendar_options = {
         "initialView": "dayGridMonth",
         "headerToolbar": {
@@ -125,3 +134,11 @@ if st.session_state.user:
             "center": "title",
             "right": "dayGridMonth,timeGridWeek"
         }
+    }
+
+    calendar(events=calendar_events, options=calendar_options)
+
+# ---------------- SAFE REFRESH ----------------
+if st.session_state.refresh_trigger > 0:
+    st.session_state.refresh_trigger = 0
+    st.rerun()
