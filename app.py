@@ -1,77 +1,83 @@
 import streamlit as st
+import pandas as pd
 from datetime import date
-from supabase_client import signup, login, get_tasks, add_task, update_task, delete_task
-from utils import import_from_excel, export_to_excel, notify_task
+from supabase_client import signup, login, get_user, add_task, get_tasks, update_task_done, delete_task
+from utils import format_due, notify
 
 st.set_page_config(page_title="Supabase To-Do App", page_icon="📝")
+
 st.title("📝 Supabase To-Do App")
 
-# -------------------- AUTHENTICATION --------------------
-auth_choice = st.radio("Login / Signup", ["Login", "Signup"])
+# ---------------- AUTHENTICATION ----------------
+if "user" not in st.session_state:
+    st.session_state.user = None
 
-if auth_choice == "Signup":
-    with st.form("signup_form"):
-        email = st.text_input("Email")
-        password = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Sign Up")
-        if submitted:
-            if signup(email, password):
-                st.info("Signup successful! Please check your email and confirm before logging in.")
-else:
-    with st.form("login_form"):
-        email = st.text_input("Email", key="login_email")
-        password = st.text_input("Password", type="password", key="login_pass")
-        submitted = st.form_submit_button("Login")
-        if submitted:
-            user = login(email, password)
-            if user:
-                st.session_state["user_id"] = user.id
-                st.success(f"Logged in as {email}")
+auth_option = st.sidebar.selectbox("Login / Signup", ["Login", "Sign Up"])
 
-# -------------------- TO-DO APP --------------------
-if "user_id" in st.session_state:
-    user_id = st.session_state["user_id"]
+email = st.sidebar.text_input("Email")
+password = st.sidebar.text_input("Password", type="password")
 
-    # Load tasks
-    if "tasks" not in st.session_state:
-        st.session_state["tasks"] = get_tasks(user_id)
+if auth_option == "Sign Up":
+    if st.sidebar.button("Sign Up"):
+        res = signup(email, password)
+        if res.user:
+            st.success("Signup successful! Please login.")
+        else:
+            st.error(res.get('error', 'Signup failed.'))
+elif auth_option == "Login":
+    if st.sidebar.button("Login"):
+        res = login(email, password)
+        if res.user:
+            st.session_state.user = res.user
+            st.success(f"Logged in as {email}")
+        else:
+            st.error(res.get('error', 'Login failed.'))
 
-    tasks = st.session_state["tasks"]
+# ---------------- MAIN APP ----------------
+if st.session_state.user:
+    user_id = st.session_state.user.id
+    tasks = get_tasks(user_id)
 
-    # Add Task
+    # Add task
     with st.form("add_task_form"):
         task_title = st.text_input("Task Title")
         due = st.date_input("Due Date", min_value=date.today())
-        submitted = st.form_submit_button("Add Task")
-        if submitted and task_title:
+        if st.form_submit_button("Add Task"):
             add_task(user_id, task_title, due)
             st.success("Task added!")
-            st.session_state["tasks"] = get_tasks(user_id)
-            notify_task(task_title, due)
+            notify(task_title, due.isoformat())
+            st.experimental_rerun()
 
     # Display tasks
-    st.subheader("Your Tasks")
-    for t in tasks:
-        cols = st.columns([0.5, 0.2, 0.2])
-        cols[0].write(f"**{t['task']}** — 📅 {t['due_date']}")
-        completed = cols[1].checkbox("Done", value=t["completed"], key=f"done_{t['id']}")
-        if completed != t["completed"]:
-            update_task(user_id, t["id"], completed)
-        if cols[2].button("🗑️", key=f"delete_{t['id']}"):
-            delete_task(user_id, t["id"])
-            st.session_state["tasks"] = get_tasks(user_id)
+    st.subheader("📋 Your Tasks")
+    for task in tasks:
+        col1, col2, col3 = st.columns([0.5, 0.3, 0.2])
+        with col1:
+            st.markdown(f"**{task['title']}**")
+        with col2:
+            st.markdown(format_due(task["due"]))
+        with col3:
+            done = st.checkbox("Done", value=task["done"], key=f"done_{task['id']}")
+            if done != task["done"]:
+                update_task_done(task["id"], done)
+                st.experimental_rerun()
+        if st.button("🗑️ Delete", key=f"del_{task['id']}"):
+            delete_task(task["id"])
             st.experimental_rerun()
 
     # Excel Import
-    uploaded_file = st.file_uploader("Import Excel", type=["xlsx"])
-    if uploaded_file:
-        new_tasks = import_from_excel(uploaded_file)
-        for task in new_tasks:
-            add_task(user_id, task["task"], task["due_date"])
+    st.subheader("📥 Import Tasks from Excel")
+    upload = st.file_uploader("Upload Excel", type=["xlsx"])
+    if upload:
+        df = pd.read_excel(upload)
+        for _, row in df.iterrows():
+            add_task(user_id, row['title'], row['due'])
         st.success("Tasks imported!")
-        st.session_state["tasks"] = get_tasks(user_id)
+        st.experimental_rerun()
 
-    # Excel Export
-    if st.button("Export Tasks to Excel"):
-        file_path = export_to_excel(tasks)
-        st.download_button("Download Excel", file_path)
+    # Export to Excel
+    st.subheader("📤 Export Tasks")
+    if st.button("Export to Excel"):
+        df_export = pd.DataFrame(tasks)
+        df_export.to_excel("tasks_export.xlsx", index=False)
+        st.download_button("Download Excel", data=open("tasks_export.xlsx", "rb"), file_name="tasks.xlsx")
