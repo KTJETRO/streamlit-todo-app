@@ -21,7 +21,7 @@ def notify(title, due_date_str):
             import subprocess
             subprocess.run([
                 "osascript", "-e",
-                f'display notification "Due: {due_date_str}" with title "{title}"'
+                f'display notification \"Due: {due_date_str}\" with title \"{title}\""
             ])
         except Exception as e:
             print("Mac notification error:", e)
