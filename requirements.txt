@@ -4,5 +4,4 @@ openpyxl
 python-dotenv
 supabase
 streamlit-calendar
-win10toast
 requests
