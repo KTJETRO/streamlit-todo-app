@@ -1,45 +1,67 @@
 # supabase_client.py
 from supabase import create_client, Client
-import os
 from datetime import date
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-
+# --- Configure your Supabase project ---
+SUPABASE_URL = "https://your-project.supabase.co"
+SUPABASE_KEY = "your-anon-or-service-key"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ---------------- AUTH ----------------
-def signup(email, password):
-    """Sign up a new user."""
-    return supabase.auth.sign_up({"email": email, "password": password})
+# ---------------- AUTHENTICATION ----------------
+def signup(email: str, password: str):
+    """Sign up a new user"""
+    try:
+        return supabase.auth.sign_up({"email": email, "password": password})
+    except Exception as e:
+        return {"error": str(e)}
 
-def login(email, password):
-    """Login existing user."""
-    return supabase.auth.sign_in_with_password({"email": email, "password": password})
+def login(email: str, password: str):
+    """Login existing user"""
+    try:
+        return supabase.auth.sign_in_with_password({"email": email, "password": password})
+    except Exception as e:
+        return {"error": str(e)}
 
 def get_user():
-    """Get the currently logged-in user."""
+    """Get current authenticated user"""
     return supabase.auth.user()
 
-# ---------------- TASKS ----------------
-def add_task(user_id, title, due):
-    """Add a new task for the user."""
-    return supabase.table("tasks").insert({
-        "user_id": user_id,
-        "title": title,
-        "due": due,
-        "done": False
-    }).execute()
+# ---------------- TASK CRUD ----------------
+def add_task(user_id: str, title: str, due: date):
+    """Add a task for a user"""
+    try:
+        due_str = due.isoformat() if isinstance(due, date) else str(due)
+        return supabase.table("tasks").insert({
+            "user_id": user_id,
+            "title": title,
+            "due": due_str,
+            "done": False
+        }).execute()
+    except Exception as e:
+        print("Add task error:", e)
+        return None
 
-def get_tasks(user_id):
-    """Fetch all tasks for a user, ordered by due date."""
-    res = supabase.table("tasks").select("*").eq("user_id", user_id).order("due").execute()
-    return res.data if res.data else []
+def get_tasks(user_id: str):
+    """Get all tasks for a user"""
+    try:
+        response = supabase.table("tasks").select("*").eq("user_id", user_id).execute()
+        return response.data or []
+    except Exception as e:
+        print("Get tasks error:", e)
+        return []
 
-def update_task_done(task_id, done):
-    """Update task completion status."""
-    return supabase.table("tasks").update({"done": done}).eq("id", task_id).execute()
+def update_task_done(task_id: int, done: bool):
+    """Update the done status of a task"""
+    try:
+        return supabase.table("tasks").update({"done": done}).eq("id", task_id).execute()
+    except Exception as e:
+        print("Update task error:", e)
+        return None
 
-def delete_task(task_id):
-    """Delete a task."""
-    return supabase.table("tasks").delete().eq("id", task_id).execute()
+def delete_task(task_id: int):
+    """Delete a task by id"""
+    try:
+        return supabase.table("tasks").delete().eq("id", task_id).execute()
+    except Exception as e:
+        print("Delete task error:", e)
+        return None
