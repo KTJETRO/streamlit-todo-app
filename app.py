@@ -14,6 +14,8 @@ if "user" not in st.session_state:
     st.session_state.user = None
 if "refresh_trigger" not in st.session_state:
     st.session_state.refresh_trigger = 0
+if "imported" not in st.session_state:
+    st.session_state.imported = False
 
 # ---------------- AUTHENTICATION ----------------
 if st.session_state.user:
@@ -138,22 +140,19 @@ if st.session_state.user:
 
     # ---------------- EXCEL IMPORT ----------------
     st.subheader("📥 Import Tasks from Excel")
-    upload = st.file_uploader("Upload Excel", type=["xlsx"])
-    if upload:
+    upload = st.file_uploader("Upload Excel", type=["xlsx"], key="excel_upload")
+    if upload and not st.session_state.imported:
         try:
             df = pd.read_excel(upload)
 
-            # Drop rows missing required fields
-            df = df.dropna(subset=["title", "due"])
-
-            # Convert date columns safely
+            # Clean and validate
+            df["title"] = df["title"].astype(str).str.strip()
             df["due"] = pd.to_datetime(df["due"], errors="coerce")
+            df = df[df["title"].notna() & df["title"].ne("") & df["due"].notna()]
             df["reminder"] = pd.to_datetime(df.get("reminder"), errors="coerce")
-
-            # Replace NaN/NaT with None
             df = df.where(pd.notnull(df), None)
 
-            # Insert tasks row by row
+            imported_count = 0
             for i, row in df.iterrows():
                 try:
                     reminder_val = row.get("reminder", None)
@@ -176,11 +175,12 @@ if st.session_state.user:
                         row.get("recurrence", None),
                         bool(row.get("email_reminder", False))
                     )
+                    imported_count += 1
                 except Exception as e:
                     st.error(f"Row {i+2} failed: {e}")
 
-            st.success("Import complete.")
-            st.session_state.refresh_trigger += 1
+            st.success(f"Import complete. {imported_count} task(s) added.")
+            st.session_state.imported = True
             st.rerun()
 
         except Exception as e:
@@ -219,6 +219,4 @@ if st.session_state.user:
     calendar(events=calendar_events, options=calendar_options)
 
 # ---------------- SAFE REFRESH ----------------
-if st.session_state.refresh_trigger > 0:
-    st.session_state.refresh_trigger = 0
-    st.rerun()
+if st.session_state.refresh_trigger > 0
