@@ -156,15 +156,25 @@ if st.session_state.user:
             # Insert tasks row by row
             for i, row in df.iterrows():
                 try:
+                    reminder_val = row.get("reminder", None)
+                    if pd.isna(reminder_val) or str(reminder_val).lower() == "nat":
+                        reminder_val = None
+                    elif isinstance(reminder_val, pd.Timestamp):
+                        reminder_val = reminder_val.to_pydatetime()
+
+                    due_val = row["due"]
+                    if isinstance(due_val, pd.Timestamp):
+                        due_val = due_val.to_pydatetime()
+
                     add_task(
                         user_id,
                         row["title"],
-                        row["due"],
+                        due_val,
                         row.get("category", ""),
                         row.get("priority", "Medium"),
-                        row.get("reminder", None),
+                        reminder_val,
                         row.get("recurrence", None),
-                        row.get("email_reminder", False)
+                        bool(row.get("email_reminder", False))
                     )
                 except Exception as e:
                     st.error(f"Row {i+2} failed: {e}")
