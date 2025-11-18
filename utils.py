@@ -1,21 +1,24 @@
-import pandas as pd
+from datetime import datetime, date
 from plyer import notification
 
-# Export tasks to Excel
-def export_to_excel(tasks):
-    df = pd.DataFrame(tasks)
-    df.to_excel("tasks_export.xlsx", index=False)
-    return "tasks_export.xlsx"
+# Format due date
+def format_due(due_str):
+    try:
+        due_date = datetime.fromisoformat(due_str).date()
+        today = date.today()
+        if due_date < today:
+            return f"⚠️ Overdue ({due_date})"
+        elif due_date == today:
+            return f"📅 Due Today ({due_date})"
+        else:
+            return f"🗓️ Due {due_date}"
+    except:
+        return "Invalid date"
 
-# Import tasks from Excel
-def import_from_excel(file):
-    df = pd.read_excel(file)
-    return df.to_dict(orient="records")
-
-# Local PC notifications
-def notify_task(task_title, due_date):
+# Local PC notification
+def notify(task_title, due_str):
     notification.notify(
         title=f"Task Due: {task_title}",
-        message=f"Due Date: {due_date}",
+        message=f"Due Date: {due_str}",
         timeout=10
     )
