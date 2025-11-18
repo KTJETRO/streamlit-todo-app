@@ -1,7 +1,6 @@
 import platform
 import datetime
 
-# ---------------- FORMAT DUE DATE ----------------
 def format_due(due):
     if isinstance(due, str):
         due_date = datetime.datetime.fromisoformat(due)
@@ -15,11 +14,9 @@ def format_due(due):
     else:
         return f"Due {due_date.strftime('%b %d, %Y')}"
 
-# ---------------- CROSS-PLATFORM NOTIFICATIONS ----------------
 def notify(title, due_date_str):
-    """Send local notification on Windows or Mac."""
     system = platform.system()
-    if system == "Darwin":  # Mac
+    if system == "Darwin":
         try:
             import subprocess
             subprocess.run([
