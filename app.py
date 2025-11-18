@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
-from supabase_client import signup, login, get_user, add_task, get_tasks, update_task_done, delete_task
-from utils import format_due, notify
+from datetime import date, datetime
 from io import BytesIO
+from streamlit_calendar import calendar
+from supabase_client import signup, login, get_user, add_task, get_tasks, update_task_done, delete_tasks
+from utils import format_due, notify
 
 st.set_page_config(page_title="Supabase To-Do App", page_icon="📝")
 st.title("📝 Supabase To-Do App")
@@ -40,40 +41,64 @@ if st.session_state.user:
     with st.form("add_task_form"):
         task_title = st.text_input("Task Title")
         due = st.date_input("Due Date", min_value=date.today())
+        category = st.text_input("Category", placeholder="e.g. Work, Personal")
+        priority = st.selectbox("Priority", ["Low", "Medium", "High"])
+        reminder = st.time_input("Reminder Time (optional)", value=None)
         if st.form_submit_button("Add Task"):
-            add_task(user_id, task_title, due)
+            reminder_dt = datetime.combine(due, reminder) if reminder else None
+            add_task(user_id, task_title, due, category, priority, reminder_dt)
             notify(task_title, due.isoformat())
             st.session_state.refresh_trigger += 1
             st.success("Task added!")
 
     st.subheader("📋 Your Tasks")
+    selected_ids = []
     for task in tasks:
-        col1, col2, col3 = st.columns([0.5, 0.3, 0.2])
-        with col1:
+        cols = st.columns([0.05, 0.4, 0.2, 0.15, 0.1, 0.1])
+        with cols[0]:
+            selected = st.checkbox("", key=f"select_{task['id']}")
+            if selected:
+                selected_ids.append(task["id"])
+        with cols[1]:
             st.markdown(f"**{task['title']}**")
-        with col2:
+        with cols[2]:
             st.markdown(format_due(task["due"]))
-        with col3:
-            done_checkbox = st.checkbox("Done", value=task["done"], key=f"done_{task['id']}")
-            if done_checkbox != task["done"]:
-                update_task_done(task["id"], done_checkbox)
-                st.session_state.refresh_trigger += 1
+        with cols[3]:
+            st.markdown(task.get("category", ""))
+        with cols[4]:
+            st.markdown(task.get("priority", ""))
+        with cols[5]:
+            st.markdown("✅" if task["done"] else "❌")
 
-        if st.button("🗑️ Delete", key=f"del_{task['id']}"):
-            delete_task(task["id"])
+    colA, colB = st.columns(2)
+    with colA:
+        if st.button("Mark Selected as Done"):
+            update_task_done(selected_ids, True)
+            st.session_state.refresh_trigger += 1
+    with colB:
+        if st.button("Delete Selected"):
+            delete_tasks(selected_ids)
             st.session_state.refresh_trigger += 1
 
     st.subheader("📥 Import Tasks from Excel")
     upload = st.file_uploader("Upload Excel", type=["xlsx"])
     if upload:
         df = pd.read_excel(upload)
-        if "title" in df.columns and "due" in df.columns:
+        required_cols = {"title", "due"}
+        if required_cols.issubset(df.columns):
             for _, row in df.iterrows():
-                add_task(user_id, row['title'], row['due'])
+                add_task(
+                    user_id,
+                    row["title"],
+                    row["due"],
+                    row.get("category", ""),
+                    row.get("priority", "Medium"),
+                    row.get("reminder", None)
+                )
             st.session_state.refresh_trigger += 1
             st.success("Tasks imported!")
         else:
-            st.error("Excel must contain 'title' and 'due' columns.")
+            st.error("Excel must contain at least 'title' and 'due' columns.")
 
     st.subheader("📤 Export Tasks")
     if st.button("Export to Excel"):
@@ -81,6 +106,25 @@ if st.session_state.user:
         output = BytesIO()
         df_export.to_excel(output, index=False)
         st.download_button("Download Excel", data=output.getvalue(), file_name="tasks.xlsx")
+
+    st.subheader("📆 Calendar View")
+    calendar_events = []
+    for task in tasks:
+        calendar_events.append({
+            "title": task["title"],
+            "start": task["due"],
+            "end": task["due"],
+            "color": "#f39c12" if task["priority"] == "High" else "#27ae60"
+        })
+    calendar_options = {
+        "initialView": "dayGridMonth",
+        "headerToolbar": {
+            "left": "prev,next today",
+            "center": "title",
+            "right": "dayGridMonth,timeGridWeek"
+        }
+    }
+    calendar(events=calendar_events, options=calendar_options)
 
 if st.session_state.refresh_trigger > 0:
     st.session_state.refresh_trigger = 0
