@@ -16,25 +16,31 @@ if "refresh_trigger" not in st.session_state:
     st.session_state.refresh_trigger = 0
 
 # ---------------- AUTHENTICATION ----------------
-auth_option = st.sidebar.selectbox("Login / Signup", ["Login", "Sign Up"])
-email = st.sidebar.text_input("Email")
-password = st.sidebar.text_input("Password", type="password")
+if st.session_state.user:
+    st.sidebar.markdown(f"**Logged in as:** {st.session_state.user.email}")
+    if st.sidebar.button("Logout"):
+        st.session_state.user = None
+        st.rerun()
+else:
+    auth_option = st.sidebar.selectbox("Login / Signup", ["Login", "Sign Up"])
+    email = st.sidebar.text_input("Email")
+    password = st.sidebar.text_input("Password", type="password")
 
-if auth_option == "Sign Up":
-    if st.sidebar.button("Sign Up"):
-        res = signup(email, password)
-        if res and hasattr(res, "user") and res.user:
-            st.success("Signup successful! Please login and confirm your email.")
-        else:
-            st.error("Signup failed. Please check your details.")
-elif auth_option == "Login":
-    if st.sidebar.button("Login"):
-        res = login(email, password)
-        if res and hasattr(res, "user") and res.user:
-            st.session_state.user = res.user
-            st.success(f"Logged in as {email}")
-        else:
-            st.error("Login failed. Make sure your email is confirmed.")
+    if auth_option == "Sign Up":
+        if st.sidebar.button("Sign Up"):
+            res = signup(email, password)
+            if res and hasattr(res, "user") and res.user:
+                st.success("Signup successful! Please login and confirm your email.")
+            else:
+                st.error("Signup failed. Please check your details.")
+    elif auth_option == "Login":
+        if st.sidebar.button("Login"):
+            res = login(email, password)
+            if res and hasattr(res, "user") and res.user:
+                st.session_state.user = res.user
+                st.success(f"Logged in as {email}")
+            else:
+                st.error("Login failed. Make sure your email is confirmed.")
 
 # ---------------- MAIN APP ----------------
 if st.session_state.user:
@@ -47,25 +53,58 @@ if st.session_state.user:
         due = st.date_input("Due Date", min_value=date.today())
         category = st.text_input("Category", placeholder="e.g. Work, Personal")
         priority = st.selectbox("Priority", ["Low", "Medium", "High"])
+        recurrence = st.selectbox("Repeat", ["None", "Daily", "Weekly", "Monthly"])
         reminder = st.time_input("Reminder Time (optional)", value=None)
         if st.form_submit_button("Add Task"):
             reminder_dt = datetime.combine(due, reminder) if reminder else None
-            add_task(user_id, task_title, due, category, priority, reminder_dt)
+            recurrence_val = recurrence if recurrence != "None" else None
+            add_task(user_id, task_title, due, category, priority, reminder_dt, recurrence_val)
             notify(task_title, due.isoformat())
             st.session_state.refresh_trigger += 1
             st.success("Task added!")
 
+    # ---------------- FILTERS ----------------
+    st.sidebar.subheader("🔍 Filter Tasks")
+    categories = sorted(set(task.get("category", "") for task in tasks if task.get("category")))
+    priorities = ["Low", "Medium", "High"]
+    selected_categories = st.sidebar.multiselect("Category", categories, default=categories)
+    selected_priorities = st.sidebar.multiselect("Priority", priorities, default=priorities)
+    due_before = st.sidebar.date_input("Due Before", value=None)
+
+    filtered_tasks = []
+    for task in tasks:
+        if task.get("category", "") not in selected_categories:
+            continue
+        if task.get("priority", "Medium") not in selected_priorities:
+            continue
+        if due_before and pd.to_datetime(task["due"]).date() > due_before:
+            continue
+        filtered_tasks.append(task)
+
     # ---------------- DISPLAY TASKS ----------------
     st.subheader("📋 Your Tasks")
+    select_all = st.checkbox("Select All Tasks")
     selected_ids = []
-    for task in tasks:
+
+    for task in filtered_tasks:
+        checkbox_key = f"select_{task['id']}"
+        if checkbox_key not in st.session_state:
+            st.session_state[checkbox_key] = False
+        if select_all:
+            st.session_state[checkbox_key] = True
+
+        is_overdue = pd.to_datetime(task["due"]).date() < date.today() and not task["done"]
+
         cols = st.columns([0.05, 0.4, 0.2, 0.15, 0.1, 0.1])
         with cols[0]:
-            selected = st.checkbox("", key=f"select_{task['id']}")
+            selected = st.checkbox("", key=checkbox_key)
             if selected:
                 selected_ids.append(task["id"])
         with cols[1]:
-            st.markdown(f"**{task['title']}**")
+            title = f"**{task['title']}**"
+            if is_overdue:
+                title = f"**:red[{task['title']}]**"
+            st.markdown(title)
         with cols[2]:
             st.markdown(format_due(task["due"]))
         with cols[3]:
@@ -101,7 +140,8 @@ if st.session_state.user:
                 row["due"],
                 row.get("category", ""),
                 row.get("priority", "Medium"),
-                row.get("reminder", None)
+                row.get("reminder", None),
+                row.get("recurrence", None)
             )
         st.session_state.refresh_trigger += 1
         st.success("Tasks imported!")
@@ -110,7 +150,7 @@ if st.session_state.user:
     st.subheader("📤 Export Tasks")
     if st.button("Export to Excel"):
         df_export = pd.DataFrame(tasks)
-        export_cols = ["title", "due", "done", "category", "priority", "reminder"]
+        export_cols = ["title", "due", "done", "category", "priority", "reminder", "recurrence"]
         df_export = df_export[export_cols]
         output = BytesIO()
         df_export.to_excel(output, index=False)
