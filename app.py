@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import date
 from supabase_client import signup, login, get_user, add_task, get_tasks, update_task_done, delete_task
 from utils import format_due, notify
+from io import BytesIO
 
 st.set_page_config(page_title="Supabase To-Do App", page_icon="📝")
 st.title("📝 Supabase To-Do App")
@@ -11,7 +12,7 @@ st.title("📝 Supabase To-Do App")
 if "user" not in st.session_state:
     st.session_state.user = None
 if "refresh_trigger" not in st.session_state:
-    st.session_state.refresh_trigger = 0  # Dummy value to force refresh
+    st.session_state.refresh_trigger = 0
 
 # ---------------- AUTHENTICATION ----------------
 auth_option = st.sidebar.selectbox("Login / Signup", ["Login", "Sign Up"])
@@ -21,14 +22,14 @@ password = st.sidebar.text_input("Password", type="password")
 if auth_option == "Sign Up":
     if st.sidebar.button("Sign Up"):
         res = signup(email, password)
-        if hasattr(res, "user") and res.user:
+        if res and hasattr(res, "user") and res.user:
             st.success("Signup successful! Please login and confirm your email.")
         else:
             st.error("Signup failed. Please check your details.")
 elif auth_option == "Login":
     if st.sidebar.button("Login"):
         res = login(email, password)
-        if hasattr(res, "user") and res.user:
+        if res and hasattr(res, "user") and res.user:
             st.session_state.user = res.user
             st.success(f"Logged in as {email}")
         else:
@@ -46,7 +47,7 @@ if st.session_state.user:
         if st.form_submit_button("Add Task"):
             add_task(user_id, task_title, due)
             notify(task_title, due.isoformat())
-            st.session_state.refresh_trigger += 1  # trigger refresh
+            st.session_state.refresh_trigger += 1
             st.success("Task added!")
 
     # ---------------- DISPLAY TASKS ----------------
@@ -72,20 +73,23 @@ if st.session_state.user:
     upload = st.file_uploader("Upload Excel", type=["xlsx"])
     if upload:
         df = pd.read_excel(upload)
-        for _, row in df.iterrows():
-            add_task(user_id, row['title'], row['due'])
-        st.session_state.refresh_trigger += 1
-        st.success("Tasks imported!")
+        if "title" in df.columns and "due" in df.columns:
+            for _, row in df.iterrows():
+                add_task(user_id, row['title'], row['due'])
+            st.session_state.refresh_trigger += 1
+            st.success("Tasks imported!")
+        else:
+            st.error("Excel must contain 'title' and 'due' columns.")
 
     # ---------------- EXCEL EXPORT ----------------
     st.subheader("📤 Export Tasks")
     if st.button("Export to Excel"):
         df_export = pd.DataFrame(tasks)
-        df_export.to_excel("tasks_export.xlsx", index=False)
-        st.download_button("Download Excel", data=open("tasks_export.xlsx", "rb"), file_name="tasks.xlsx")
+        output = BytesIO()
+        df_export.to_excel(output, index=False)
+        st.download_button("Download Excel", data=output.getvalue(), file_name="tasks.xlsx")
 
 # ---------------- SAFE REFRESH ----------------
-# If refresh_trigger changed, rerun the app
 if st.session_state.refresh_trigger > 0:
     st.session_state.refresh_trigger = 0
-    st.experimental_rerun()  # safe on Streamlit Cloud now
+    st.rerun()
