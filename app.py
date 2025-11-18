@@ -140,24 +140,41 @@ if st.session_state.user:
     st.subheader("📥 Import Tasks from Excel")
     upload = st.file_uploader("Upload Excel", type=["xlsx"])
     if upload:
-        df = pd.read_excel(upload)
-        df = df.dropna(subset=["title", "due"])
-        df["due"] = pd.to_datetime(df["due"], errors="coerce")
-        if "reminder" in df.columns:
-            df["reminder"] = pd.to_datetime(df["reminder"], errors="coerce")
-        for _, row in df.iterrows():
-            add_task(
-                user_id,
-                row["title"],
-                row["due"],
-                row.get("category", ""),
-                row.get("priority", "Medium"),
-                row.get("reminder", None),
-                row.get("recurrence", None),
-                row.get("email_reminder", False)
-            )
-        st.session_state.refresh_trigger += 1
-        st.rerun()
+        try:
+            df = pd.read_excel(upload)
+
+            # Drop rows missing required fields
+            df = df.dropna(subset=["title", "due"])
+
+            # Convert date columns safely
+            df["due"] = pd.to_datetime(df["due"], errors="coerce")
+            df["reminder"] = pd.to_datetime(df.get("reminder"), errors="coerce")
+
+            # Replace NaN/NaT with None
+            df = df.where(pd.notnull(df), None)
+
+            # Insert tasks row by row
+            for i, row in df.iterrows():
+                try:
+                    add_task(
+                        user_id,
+                        row["title"],
+                        row["due"],
+                        row.get("category", ""),
+                        row.get("priority", "Medium"),
+                        row.get("reminder", None),
+                        row.get("recurrence", None),
+                        row.get("email_reminder", False)
+                    )
+                except Exception as e:
+                    st.error(f"Row {i+2} failed: {e}")
+
+            st.success("Import complete.")
+            st.session_state.refresh_trigger += 1
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"Import failed: {e}")
 
     # ---------------- EXCEL EXPORT ----------------
     st.subheader("📤 Export Tasks")
