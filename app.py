@@ -4,19 +4,17 @@ from datetime import date
 from supabase_client import signup, login, get_user, add_task, get_tasks, update_task_done, delete_task
 from utils import format_due, notify
 
-# ---------------- PAGE SETUP ----------------
 st.set_page_config(page_title="Supabase To-Do App", page_icon="📝")
 st.title("📝 Supabase To-Do App")
 
 # ---------------- SESSION STATE ----------------
 if "user" not in st.session_state:
     st.session_state.user = None
-if "refresh" not in st.session_state:
-    st.session_state.refresh = False
+if "refresh_trigger" not in st.session_state:
+    st.session_state.refresh_trigger = 0  # Dummy value to force refresh
 
 # ---------------- AUTHENTICATION ----------------
 auth_option = st.sidebar.selectbox("Login / Signup", ["Login", "Sign Up"])
-
 email = st.sidebar.text_input("Email")
 password = st.sidebar.text_input("Password", type="password")
 
@@ -48,7 +46,7 @@ if st.session_state.user:
         if st.form_submit_button("Add Task"):
             add_task(user_id, task_title, due)
             notify(task_title, due.isoformat())
-            st.session_state.refresh = True
+            st.session_state.refresh_trigger += 1  # trigger refresh
             st.success("Task added!")
 
     # ---------------- DISPLAY TASKS ----------------
@@ -63,11 +61,11 @@ if st.session_state.user:
             done_checkbox = st.checkbox("Done", value=task["done"], key=f"done_{task['id']}")
             if done_checkbox != task["done"]:
                 update_task_done(task["id"], done_checkbox)
-                st.session_state.refresh = True
+                st.session_state.refresh_trigger += 1
 
         if st.button("🗑️ Delete", key=f"del_{task['id']}"):
             delete_task(task["id"])
-            st.session_state.refresh = True
+            st.session_state.refresh_trigger += 1
 
     # ---------------- EXCEL IMPORT ----------------
     st.subheader("📥 Import Tasks from Excel")
@@ -76,7 +74,7 @@ if st.session_state.user:
         df = pd.read_excel(upload)
         for _, row in df.iterrows():
             add_task(user_id, row['title'], row['due'])
-        st.session_state.refresh = True
+        st.session_state.refresh_trigger += 1
         st.success("Tasks imported!")
 
     # ---------------- EXCEL EXPORT ----------------
@@ -87,6 +85,7 @@ if st.session_state.user:
         st.download_button("Download Excel", data=open("tasks_export.xlsx", "rb"), file_name="tasks.xlsx")
 
 # ---------------- SAFE REFRESH ----------------
-if st.session_state.refresh:
-    st.session_state.refresh = False
-    st.experimental_refresh()  # safely refresh the app
+# If refresh_trigger changed, rerun the app
+if st.session_state.refresh_trigger > 0:
+    st.session_state.refresh_trigger = 0
+    st.experimental_rerun()  # safe on Streamlit Cloud now
