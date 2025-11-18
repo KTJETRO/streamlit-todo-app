@@ -1,10 +1,13 @@
 import streamlit as st
 from supabase import create_client, Client
+from datetime import datetime
 
+# Load credentials from Streamlit secrets
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# ---------------- AUTH ----------------
 def signup(email: str, password: str):
     try:
         return supabase.auth.sign_up({"email": email, "password": password})
@@ -22,21 +25,26 @@ def login(email: str, password: str):
 def get_user():
     return supabase.auth.user()
 
+# ---------------- TASKS ----------------
 def add_task(user_id, title, due, category="", priority="Medium", reminder=None, recurrence=None, email_reminder=False):
     try:
-        due_date = due if isinstance(due, str) else due.isoformat()
-        reminder_time = reminder if isinstance(reminder, str) else (reminder.isoformat() if reminder else None)
-        supabase.table("tasks").insert({
+        # Ensure ISO format for timestamps or None
+        due_str = due.isoformat() if isinstance(due, datetime) else str(due)
+        reminder_str = reminder.isoformat() if isinstance(reminder, datetime) else None
+
+        data = {
             "user_id": user_id,
             "title": title,
-            "due": due_date,
+            "due": due_str,
             "done": False,
             "category": category,
             "priority": priority,
-            "reminder": reminder_time,
+            "reminder": reminder_str,
             "recurrence": recurrence,
             "email_reminder": email_reminder
-        }).execute()
+        }
+
+        supabase.table("tasks").insert(data).execute()
     except Exception as e:
         st.error(f"Add task error: {e}")
 
