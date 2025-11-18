@@ -1,7 +1,8 @@
-streamlit
-supabase
-pandas
-openpyxl
-plyer
-streamlit-calendar
-
+streamlit>=1.28.0
+pandas>=2.0.0
+openpyxl>=3.1.0
+python-dotenv>=1.0.0
+supabase>=1.0.3
+streamlit-calendar>=0.0.6
+win10toast>=0.9
+requests>=2.31.0
