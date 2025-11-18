@@ -1,19 +1,30 @@
 # utils.py
-from datetime import datetime, date
+from datetime import date, datetime
 import platform
 
-# Notifications
+# Cross-platform notifications
 try:
     if platform.system() == "Windows":
         from win10toast import ToastNotifier
-        toaster = ToastNotifier()
-    else:
-        from plyer import notification
+        notifier = ToastNotifier()
+    elif platform.system() == "Darwin":  # Mac
+        import subprocess
 except ImportError:
-    toaster = None
+    notifier = None
 
-def format_due(due_str):
-    """Format due date for display."""
+def notify(title: str, due: str):
+    """Show local notification for a task"""
+    try:
+        msg = f"Task: {title}\nDue: {due}"
+        if platform.system() == "Windows" and notifier:
+            notifier.show_toast("To-Do Reminder", msg, duration=10)
+        elif platform.system() == "Darwin":
+            subprocess.call(['osascript', '-e', f'display notification "{title}" with title "To-Do Reminder"'])
+    except Exception as e:
+        print("Notification error:", e)
+
+def format_due(due_str: str) -> str:
+    """Format due date for display"""
     try:
         due_date = datetime.fromisoformat(due_str).date()
         today = date.today()
@@ -23,21 +34,5 @@ def format_due(due_str):
             return f"📅 Due Today ({due_date})"
         else:
             return f"🗓️ Due {due_date}"
-    except:
+    except Exception:
         return "Invalid date"
-
-def notify(task_title, due_date):
-    """Send local notification for due tasks."""
-    message = f"Task '{task_title}' is due on {due_date}."
-    try:
-        if platform.system() == "Windows" and toaster:
-            toaster.show_toast("To-Do Reminder", message, duration=10)
-        else:
-            from plyer import notification
-            notification.notify(
-                title="To-Do Reminder",
-                message=message,
-                timeout=10
-            )
-    except Exception as e:
-        print(f"Notification failed: {e}")
