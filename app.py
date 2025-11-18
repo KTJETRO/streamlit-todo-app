@@ -219,4 +219,5 @@ if st.session_state.user:
     calendar(events=calendar_events, options=calendar_options)
 
 # ---------------- SAFE REFRESH ----------------
-if st.session_state.refresh_trigger > 0
+if st.session_state.refresh_trigger > 0:
+
